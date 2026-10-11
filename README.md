@@ -8,9 +8,9 @@ A simple, client-side browser extension and script to export and clean up conver
 
 I originally made this tool for myself after trying to copy a long Claude conversation and finding out it was broken. 
 
-Because Claude virtualizes its chat history, clicking *"Load later messages"* only swaps the visible message window rather than loading the whole chat onto the page. Normal copy-pasting or regular browser scrapers would miss dozens of messages.
+I first tried the classic **Ctrl + P (Print to PDF)** trick, but the browser only printed the active screen view and completely cut off the rest of the chat. Then I tried manually clicking *"Load later messages"*, but Claude virtualizes its chat history—clicking the button only swaps the visible message window (e.g. from 18,000 → 16,699 characters) rather than appending them. Normal copy-pasting or regular page scrapers missed dozens of messages.
 
-While looking through the DevTools network tab, I realized that the browser actually receives the full, unpaginated conversation data in the background. I wrote a small script to grab that data directly from the active session and save it as a clean Markdown file.
+While inspecting the DevTools network tab, I realized that the browser actually receives the full, unpaginated conversation data (all 196+ messages in my test) in the background via internal API requests. I wrote a small script to grab that data directly from the active browser session and save it as a clean Markdown file.
 
 Along the way, I added two things that made it much more useful:
 1. **Multi-platform support**: Added handling for ChatGPT, DeepSeek, Gemini, Perplexity, and local WebUIs.

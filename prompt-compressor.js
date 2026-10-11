@@ -17,12 +17,13 @@
 
   // Common conversational filler regex patterns (opening pleasantries)
   const OPENING_FILLERS = [
-    /^(sure|certainly|absolutely|of course|gladly|happy to help)[!.,]?\s*(i'd be happy to|i can help with that|here is|here's|below is|let's dive in|let's look at)[^.\n]*[.:]/i,
-    /^(hello|hi|hey there)[!.,]?\s*(welcome|let's|i can|here is)?[^.\n]*[.:]/i,
+    /^(sure|certainly|absolutely|of course|gladly|happy to help|yes)[!.,]?\s*(i'd be happy to|i would be happy to|i can help with that|i can help|here is|here's|below is|let's dive in|let's look at)[^.\n]*[.:]?/i,
+    /^(sure|certainly|absolutely|of course|gladly|no problem)[!.,]?\s*/i,
+    /^(i'd be happy to|i would be happy to|happy to help with that)[^.\n]*[.:]?/i,
+    /^(hello|hi|hey there)[!.,]?\s*(welcome|let's|i can|here is)?[^.\n]*[.:]?/i,
     /^(great question|good catch|excellent point|that's a great observation)[!.,]?\s*/i,
     /^(as an ai language model|as an ai|as claude|as chatgpt)[,.]?\s*/i,
-    /^(certainly|sure thing|no problem)[!.,]?\s*/i,
-    /^(here is the updated (code|version|solution|implementation)|here's what you need)[!.,:]?\s*/i
+    /^(here is the updated (code|version|solution|implementation)|here's what you need|here is the implementation)[!.,:]?\s*/i
   ];
 
   // Common conversational filler regex patterns (closing pleasantries)
@@ -58,14 +59,34 @@
     if (!text) return '';
     let cleaned = text.trim();
 
-    // Remove opening filler
-    for (const pattern of OPENING_FILLERS) {
-      cleaned = cleaned.replace(pattern, '').trim();
+    // Iteratively remove opening filler sentences
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const pattern of OPENING_FILLERS) {
+        if (pattern.test(cleaned)) {
+          const next = cleaned.replace(pattern, '').trim();
+          if (next !== cleaned) {
+            cleaned = next;
+            changed = true;
+          }
+        }
+      }
     }
 
-    // Remove closing filler
-    for (const pattern of CLOSING_FILLERS) {
-      cleaned = cleaned.replace(pattern, '').trim();
+    // Iteratively remove closing filler sentences
+    changed = true;
+    while (changed) {
+      changed = false;
+      for (const pattern of CLOSING_FILLERS) {
+        if (pattern.test(cleaned)) {
+          const next = cleaned.replace(pattern, '').trim();
+          if (next !== cleaned) {
+            cleaned = next;
+            changed = true;
+          }
+        }
+      }
     }
 
     // Remove repetitive disclaimers
