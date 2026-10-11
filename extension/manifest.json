@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Universal AI Chat Exporter & Prompt Compressor",
+  "version": "1.0.0",
+  "description": "A simple client-side tool to export and clean up conversations from Claude, ChatGPT, Gemini, and DeepSeek when regular copying doesn't work.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*",
+    "https://chat.deepseek.com/*",
+    "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*",
+    "https://chat.mistral.ai/*",
+    "https://copilot.microsoft.com/*",
+    "https://poe.com/*",
+    "https://grok.com/*",
+    "https://x.com/i/grok*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Export & Compress AI Conversation"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*",
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*",
+        "https://chat.mistral.ai/*",
+        "https://copilot.microsoft.com/*",
+        "https://poe.com/*",
+        "https://grok.com/*",
+        "https://x.com/i/grok*"
+      ],
+      "js": [
+        "prompt-compressor.js",
+        "universal-ai-exporter.js",
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document-start"
+    }
+  ]
+}
