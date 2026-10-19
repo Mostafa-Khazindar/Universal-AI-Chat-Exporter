@@ -491,6 +491,51 @@
     },
 
     // ------------------------------------------
+    // GLM / CHATGLM / Z.AI (chatglm.cn, z.ai, bigmodel.cn, glm.ai)
+    // ------------------------------------------
+    glm: {
+      name: 'GLM / ChatGLM',
+      matches: (h) => {
+        const host = h || (typeof location !== 'undefined' ? location.hostname : '');
+        return host.includes('chatglm.cn') || host.includes('z.ai') || host.includes('bigmodel.cn') || host.includes('glm.ai') || host.includes('zhipu');
+      },
+      async extract() {
+        const qSel = ".question-content-wrap, [class*='question-content'], [class*='question-wrap'], [class*='user-content'], [class*='user-msg'], [class*='my-message']";
+        const aSel = ".answer-content-wrap, [class*='answer-content'], [class*='answer-wrap'], [class*='bot-content'], [class*='assistant-content'], [class*='bot-message']";
+
+        const nodes = Array.from(document.querySelectorAll(`${qSel}, ${aSel}`));
+        if (nodes.length > 0) {
+          const messages = nodes.map(el => {
+            const isUser = el.matches(qSel) || el.className.toLowerCase().includes("question") || el.className.toLowerCase().includes("user");
+            const thinkEl = el.querySelector("[class*='think'], [class*='reason']");
+            const thoughts = thinkEl ? cleanText(thinkEl.innerText) : "";
+            const clone = el.cloneNode(true);
+            const cThink = clone.querySelector("[class*='think'], [class*='reason']");
+            if (cThink) cThink.remove();
+            const text = cleanText(clone.innerText);
+            return (text || thoughts) ? {
+              role: isUser ? 'user' : 'assistant',
+              sender: isUser ? 'User' : 'GLM',
+              text: text,
+              thoughts: thoughts,
+              timestamp: null
+            } : null;
+          }).filter(Boolean);
+
+          if (messages.length > 0) {
+            return {
+              platform: 'GLM',
+              title: cleanText(document.title.replace(' - 智谱清言', '').replace(' - ChatGLM', '')) || 'GLM Conversation',
+              id: location.pathname.split('/').pop() || 'unknown',
+              messages
+            };
+          }
+        }
+        return Adapters.generic.extractFromDOM({ platform: 'GLM' });
+      }
+    },
+
+    // ------------------------------------------
     // GENERIC FALLBACK
     // ------------------------------------------
     generic: {
@@ -498,41 +543,107 @@
       matches: () => true,
       async extractFromDOM(options = {}) {
         const platformName = options.platform || 'AI Chat';
-        const messages = [];
+        let messages = [];
 
-        const candidates = Array.from(document.querySelectorAll('[data-role], [data-message-author-role], article, .chat-message, [class*="message-row"]'));
-        if (candidates.length > 0) {
-          candidates.forEach((el, idx) => {
-            const roleAttr = (el.getAttribute('data-role') || el.getAttribute('data-message-author-role') || '').toLowerCase();
-            const classStr = el.className.toLowerCase();
-            const isUser = roleAttr.includes('user') || roleAttr.includes('human') || classStr.includes('user') || classStr.includes('human');
-            const text = cleanText(el.innerText);
-            if (text) {
-              messages.push({
-                index: idx,
-                role: isUser ? 'user' : 'assistant',
-                sender: isUser ? 'User' : platformName,
-                text,
-                timestamp: null
-              });
-            }
-          });
+        // Stage A: High-confidence conversational turn containers
+        const turnSelectors = [
+          "conversation-turn",
+          "article",
+          "[data-role]",
+          "[data-message-author-role]",
+          "[data-testid*='message']",
+          "[data-testid*='chat']",
+          "[class*='message-row']",
+          "[class*='chat-item']",
+          "[class*='message-item']",
+          "[class*='chat-message']",
+          "[class*='message-bubble']",
+          "[class*='question-content']",
+          "[class*='answer-content']",
+          "[class*='dialogue']",
+          "[class*='chat-content']",
+          "[class*='talk-bubble']",
+          ".chat-item",
+          ".message-item",
+          ".question-content-wrap",
+          ".answer-content-wrap"
+        ].join(", ");
+
+        let turns = Array.from(document.querySelectorAll(turnSelectors));
+        turns = turns.filter(el => !turns.some(other => other !== el && el.contains(other)));
+
+        if (turns.length > 0) {
+          messages = turns.map(turn => {
+            const roleAttr = (turn.getAttribute("data-role") || turn.getAttribute("data-message-author-role") || turn.getAttribute("data-author") || "").toLowerCase();
+            const classStr = turn.className.toLowerCase();
+            const isUser = roleAttr.includes("user") || roleAttr.includes("human") ||
+                           classStr.includes("user") || classStr.includes("human") || classStr.includes("question") || classStr.includes("prompt") ||
+                           !!turn.querySelector("[class*='user'], [class*='human'], [class*='question']");
+
+            const thinkEl = turn.querySelector(".ds-think, [class*='think'], [class*='reason']");
+            const thoughts = thinkEl ? cleanText(thinkEl.innerText) : "";
+
+            const clone = turn.cloneNode(true);
+            const cThink = clone.querySelector(".ds-think, [class*='think'], [class*='reason']");
+            if (cThink) cThink.remove();
+
+            const text = cleanText(clone.innerText);
+            return (text || thoughts) ? {
+              role: isUser ? 'user' : 'assistant',
+              sender: isUser ? 'User' : platformName,
+              text: text,
+              thoughts: thoughts,
+              timestamp: null
+            } : null;
+          }).filter(Boolean);
         }
 
+        // Stage B: Markdown & Prose Block Harvesting
         if (messages.length === 0) {
-          const blocks = Array.from(document.querySelectorAll('.prose, .markdown, [class*="markdown-body"]'));
-          blocks.forEach((el, idx) => {
-            const text = cleanText(el.innerText);
-            if (text) {
-              messages.push({
-                index: idx,
-                role: idx % 2 === 0 ? 'user' : 'assistant',
-                sender: idx % 2 === 0 ? 'User' : platformName,
-                text,
+          const markdownBlocks = Array.from(document.querySelectorAll(".markdown-body, .prose, [class*='markdown'], [class*='answer'], [class*='bubble'], .text-message"));
+          if (markdownBlocks.length > 0) {
+            messages = markdownBlocks.map(block => {
+              const text = cleanText(block.innerText);
+              const isUser = block.className.toLowerCase().includes("user") || block.className.toLowerCase().includes("question");
+              return text ? {
+                role: isUser ? 'user' : 'assistant',
+                sender: isUser ? 'User' : platformName,
+                text: text,
                 timestamp: null
-              });
+              } : null;
+            }).filter(Boolean);
+          }
+        }
+
+        // Stage C: Main Chat Scroll Container Child Walker
+        if (messages.length === 0) {
+          const candidates = Array.from(document.querySelectorAll("main, [role='main'], [class*='chat'], [class*='conversation'], [class*='history'], [class*='message']"));
+          let bestContainer = null;
+          let maxValidChildren = 0;
+
+          for (const c of candidates) {
+            const directChildren = Array.from(c.children);
+            const textChildren = directChildren.filter(child => cleanText(child.innerText).length > 5);
+            if (textChildren.length >= 2 && textChildren.length > maxValidChildren) {
+              maxValidChildren = textChildren.length;
+              bestContainer = c;
             }
-          });
+          }
+
+          if (bestContainer) {
+            const items = Array.from(bestContainer.children).filter(child => cleanText(child.innerText).length > 5);
+            messages = items.map(item => {
+              const text = cleanText(item.innerText);
+              const isUser = item.className.toLowerCase().includes("user") || item.className.toLowerCase().includes("right") ||
+                             !!item.querySelector("[class*='user'], [class*='avatar-user'], img[alt*='user' i]");
+              return text ? {
+                role: isUser ? 'user' : 'assistant',
+                sender: isUser ? 'User' : platformName,
+                text: text,
+                timestamp: null
+              } : null;
+            }).filter(Boolean);
+          }
         }
 
         return {
@@ -655,7 +766,7 @@
     Adapters,
     Exporters,
     async exportCurrent(format = 'markdown') {
-      const order = ['claude', 'chatgpt', 'deepseek', 'gemini', 'perplexity'];
+      const order = ['claude', 'chatgpt', 'deepseek', 'glm', 'gemini', 'perplexity'];
       let activeAdapter = Adapters.generic;
       for (const k of order) {
         if (Adapters[k].matches()) { activeAdapter = Adapters[k]; break; }

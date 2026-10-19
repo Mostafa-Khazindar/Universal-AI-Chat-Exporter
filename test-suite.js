@@ -125,6 +125,12 @@ const chatgptMockData = {
   }
 };
 
+// 2.4 GLM DOM Extraction Simulation
+assert(Exporter.Adapters.glm !== undefined, 'GLM adapter is registered in Universal AI Exporter');
+assert(Exporter.Adapters.glm.matches('chatglm.cn'), 'GLM adapter matches chatglm.cn');
+assert(Exporter.Adapters.glm.matches('chat.z.ai'), 'GLM adapter matches chat.z.ai');
+assert(Exporter.Adapters.glm.matches('bigmodel.cn'), 'GLM adapter matches bigmodel.cn');
+
 // -------------------------------------------------------------
 // TEST 3: File Syntax & Bundle Verification
 // -------------------------------------------------------------

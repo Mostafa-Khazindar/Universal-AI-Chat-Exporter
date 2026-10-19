@@ -1,15 +1,16 @@
 /**
- * Universal AI Exporter & Context Compressor - Single Paste Console Snippet (v3.0)
- * Works on: Claude, ChatGPT, DeepSeek, Google Gemini, Perplexity, Mistral, Copilot, Grok, and Local WebUIs.
+ * Universal AI Exporter & Context Compressor - Single Paste Console Snippet (v3.1)
+ * Works on: Claude, ChatGPT, DeepSeek, GLM / ChatGLM / Z.ai, Google Gemini, Perplexity, Mistral, Copilot, Grok, and Local WebUIs.
  * 
  * Features:
- * - 4-Tier Network Interception (Captures full unpaginated API response)
+ * - Multi-Platform Network & DOM Sniffing (Now with native GLM / ChatGLM support)
+ * - 5-Stage Universal DOM Fallback Engine that never fails on active chats
  * - Automatic Token Compression (Strips conversational filler, trims thinking traces)
  * - 1-Click Clipboard Copy formatted for the Next AI
  * - Instant Markdown File Download
  */
 (async () => {
-  console.log("%c⚡ Universal AI Exporter & Prompt Compressor starting...", "color: #38bdf8; font-weight: bold; font-size: 14px;");
+  console.log("%c⚡ Universal AI Exporter & Prompt Compressor (v3.1) starting...", "color: #38bdf8; font-weight: bold; font-size: 14px;");
 
   function clean(t) {
     return t ? String(t).replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim() : "";
@@ -24,7 +25,7 @@
   function stripFiller(text) {
     if (!text) return "";
     let c = text.trim();
-    c = c.replace(/^(sure|certainly|absolutely|of course|gladly|happy to help)[!.,]?\s*(i'd be happy to|i can help with that|here is|here's|below is)?[^.\n]*[.:]/i, "");
+    c = c.replace(/^(sure|certainly|absolutely|of course|gladly|happy to help|yes)[!.,]?\s*(i'd be happy to|i would be happy to|i can help with that|i can help|here is|here's|below is)?[^.\n]*[.:]?/i, "");
     c = c.replace(/^(hello|hi|hey there)[!.,]?\s*/i, "");
     c = c.replace(/^(as an ai language model|as an ai|as claude|as chatgpt)[,.]?\s*/i, "");
     c = c.replace(/(let me know if you (need|have) (any|more) (further )?(help|questions|adjustments|feedback)[!.]?)\s*$/i, "");
@@ -161,15 +162,132 @@
     }
   }
 
-  // 4. GENERAL DOM RECOVERY (Gemini, Perplexity, Copilot, etc.)
+  // 4. GLM / CHATGLM / Z.AI (chatglm.cn, z.ai, bigmodel.cn, glm.ai)
+  else if (host.includes("chatglm.cn") || host.includes("z.ai") || host.includes("bigmodel.cn") || host.includes("glm.ai") || host.includes("zhipu")) {
+    conv.platform = "GLM";
+
+    // Check specific GLM question and answer DOM selectors
+    const qSel = ".question-content-wrap, [class*='question-content'], [class*='question-wrap'], [class*='user-content'], [class*='user-msg'], [class*='my-message']";
+    const aSel = ".answer-content-wrap, [class*='answer-content'], [class*='answer-wrap'], [class*='bot-content'], [class*='assistant-content'], [class*='bot-message']";
+    
+    const glmNodes = Array.from(document.querySelectorAll(`${qSel}, ${aSel}`));
+    if (glmNodes.length > 0) {
+      conv.messages = glmNodes.map(el => {
+        const isUser = el.matches(qSel) || el.className.toLowerCase().includes("question") || el.className.toLowerCase().includes("user");
+        const thinkEl = el.querySelector("[class*='think'], [class*='reason']");
+        const thoughts = thinkEl ? clean(thinkEl.innerText) : "";
+        const clone = el.cloneNode(true);
+        const cThink = clone.querySelector("[class*='think'], [class*='reason']");
+        if (cThink) cThink.remove();
+        const text = clean(clone.innerText);
+        return (text || thoughts) ? {
+          role: isUser ? "user" : "assistant",
+          sender: isUser ? "User" : "GLM",
+          text: text,
+          thoughts: thoughts
+        } : null;
+      }).filter(Boolean);
+    }
+  }
+
+  // 5. UNIVERSAL MULTI-STAGE DOM RECOVERY (Works on ANY AI chat platform)
   if (!conv.messages || conv.messages.length === 0) {
-    const turns = Array.from(document.querySelectorAll("conversation-turn, article, [data-role], [data-message-author-role], [class*='message-row']"));
+    // Stage A: High-confidence conversational turn containers
+    const turnSelectors = [
+      "conversation-turn",
+      "article",
+      "[data-role]",
+      "[data-message-author-role]",
+      "[data-testid*='message']",
+      "[data-testid*='chat']",
+      "[class*='message-row']",
+      "[class*='chat-item']",
+      "[class*='message-item']",
+      "[class*='chat-message']",
+      "[class*='message-bubble']",
+      "[class*='question-content']",
+      "[class*='answer-content']",
+      "[class*='dialogue']",
+      "[class*='chat-content']",
+      "[class*='talk-bubble']",
+      ".chat-item",
+      ".message-item",
+      ".question-content-wrap",
+      ".answer-content-wrap"
+    ].join(", ");
+
+    let turns = Array.from(document.querySelectorAll(turnSelectors));
+    // Filter out parent elements that contain matched child turns
+    turns = turns.filter(el => !turns.some(other => other !== el && el.contains(other)));
+
     if (turns.length > 0) {
       conv.messages = turns.map(turn => {
-        const roleAttr = (turn.getAttribute("data-role") || turn.getAttribute("data-message-author-role") || "").toLowerCase();
-        const isUser = roleAttr.includes("user") || turn.className.toLowerCase().includes("user") || !!turn.querySelector("[class*='user']");
-        const text = clean(turn.innerText);
-        return text ? { role: isUser ? "user" : "assistant", sender: isUser ? "User" : "Assistant", text } : null;
+        const roleAttr = (turn.getAttribute("data-role") || turn.getAttribute("data-message-author-role") || turn.getAttribute("data-author") || "").toLowerCase();
+        const classStr = turn.className.toLowerCase();
+        const isUser = roleAttr.includes("user") || roleAttr.includes("human") ||
+                       classStr.includes("user") || classStr.includes("human") || classStr.includes("question") || classStr.includes("prompt") ||
+                       !!turn.querySelector("[class*='user'], [class*='human'], [class*='question']");
+
+        const thinkEl = turn.querySelector(".ds-think, [class*='think'], [class*='reason']");
+        const thoughts = thinkEl ? clean(thinkEl.innerText) : "";
+
+        const clone = turn.cloneNode(true);
+        const cThink = clone.querySelector(".ds-think, [class*='think'], [class*='reason']");
+        if (cThink) cThink.remove();
+
+        const text = clean(clone.innerText);
+        return (text || thoughts) ? {
+          role: isUser ? "user" : "assistant",
+          sender: isUser ? "User" : (conv.platform || "Assistant"),
+          text: text,
+          thoughts: thoughts
+        } : null;
+      }).filter(Boolean);
+    }
+  }
+
+  // Stage B: Markdown & Prose Block Harvesting
+  if (!conv.messages || conv.messages.length === 0) {
+    const markdownBlocks = Array.from(document.querySelectorAll(".markdown-body, .prose, [class*='markdown'], [class*='answer'], [class*='bubble'], .text-message"));
+    if (markdownBlocks.length > 0) {
+      conv.messages = markdownBlocks.map((block, idx) => {
+        const text = clean(block.innerText);
+        const isUser = block.className.toLowerCase().includes("user") || block.className.toLowerCase().includes("question");
+        return text ? {
+          role: isUser ? "user" : "assistant",
+          sender: isUser ? "User" : (conv.platform || "Assistant"),
+          text: text
+        } : null;
+      }).filter(Boolean);
+    }
+  }
+
+  // Stage C: Main Chat Scroll Container Child Walker (The Ultimate Fail-Safe)
+  if (!conv.messages || conv.messages.length === 0) {
+    const candidates = Array.from(document.querySelectorAll("main, [role='main'], [class*='chat'], [class*='conversation'], [class*='history'], [class*='message']"));
+    let bestContainer = null;
+    let maxValidChildren = 0;
+
+    for (const c of candidates) {
+      const directChildren = Array.from(c.children);
+      const textChildren = directChildren.filter(child => clean(child.innerText).length > 5);
+      if (textChildren.length >= 2 && textChildren.length > maxValidChildren) {
+        maxValidChildren = textChildren.length;
+        bestContainer = c;
+      }
+    }
+
+    if (bestContainer) {
+      const items = Array.from(bestContainer.children).filter(child => clean(child.innerText).length > 5);
+      conv.messages = items.map((item, idx) => {
+        const text = clean(item.innerText);
+        const isUser = item.className.toLowerCase().includes("user") || item.className.toLowerCase().includes("right") ||
+                       !!item.querySelector("[class*='user'], [class*='avatar-user'], img[alt*='user' i]");
+        return text ? {
+          role: isUser ? "user" : "assistant",
+          sender: isUser ? "User" : (conv.platform || "Assistant"),
+          text: text
+        } : null;
       }).filter(Boolean);
     }
   }

@@ -16,6 +16,12 @@
 // @match        https://poe.com/*
 // @match        https://grok.com/*
 // @match        https://x.com/i/grok*
+// @match        https://*.chatglm.cn/*
+// @match        https://chatglm.cn/*
+// @match        https://*.z.ai/*
+// @match        https://z.ai/*
+// @match        https://*.bigmodel.cn/*
+// @match        https://*.glm.ai/*
 // @match        http://localhost:*/*
 // @match        http://127.0.0.1:*/*
 // @grant        none
@@ -193,22 +199,114 @@
       }
     }
 
-    // 4. DOM FALLBACK (Gemini, Perplexity, Copilot, Generic)
-    const turns = Array.from(document.querySelectorAll('conversation-turn, article, .chat-message, [data-role], [data-message-author-role], [class*="message-row"]'));
-    const messages = [];
+    // 4. GLM / CHATGLM / Z.AI (chatglm.cn, z.ai, bigmodel.cn, glm.ai)
+    if (host.includes('chatglm.cn') || host.includes('z.ai') || host.includes('bigmodel.cn') || host.includes('glm.ai') || host.includes('zhipu')) {
+      const qSel = ".question-content-wrap, [class*='question-content'], [class*='question-wrap'], [class*='user-content'], [class*='user-msg'], [class*='my-message']";
+      const aSel = ".answer-content-wrap, [class*='answer-content'], [class*='answer-wrap'], [class*='bot-content'], [class*='assistant-content'], [class*='bot-message']";
+      const glmNodes = Array.from(document.querySelectorAll(`${qSel}, ${aSel}`));
+      if (glmNodes.length > 0) {
+        const msgs = glmNodes.map(el => {
+          const isUser = el.matches(qSel) || el.className.toLowerCase().includes('question') || el.className.toLowerCase().includes('user');
+          const thinkEl = el.querySelector("[class*='think'], [class*='reason']");
+          const thoughts = thinkEl ? cleanText(thinkEl.innerText) : '';
+          const clone = el.cloneNode(true);
+          const cThink = clone.querySelector("[class*='think'], [class*='reason']");
+          if (cThink) cThink.remove();
+          const text = cleanText(clone.innerText);
+          return (text || thoughts) ? {
+            role: isUser ? 'user' : 'assistant',
+            sender: isUser ? 'User' : 'GLM',
+            text,
+            thoughts
+          } : null;
+        }).filter(Boolean);
+
+        if (msgs.length > 0) {
+          return { platform: 'GLM', title: cleanText(document.title.replace(' - 智谱清言', '').replace(' - ChatGLM', '')) || 'GLM Chat', messages: msgs };
+        }
+      }
+    }
+
+    // 5. UNIVERSAL MULTI-STAGE DOM RECOVERY
+    const turnSelectors = [
+      "conversation-turn",
+      "article",
+      "[data-role]",
+      "[data-message-author-role]",
+      "[data-testid*='message']",
+      "[data-testid*='chat']",
+      "[class*='message-row']",
+      "[class*='chat-item']",
+      "[class*='message-item']",
+      "[class*='chat-message']",
+      "[class*='message-bubble']",
+      "[class*='question-content']",
+      "[class*='answer-content']",
+      "[class*='dialogue']",
+      "[class*='chat-content']",
+      ".chat-item",
+      ".message-item",
+      ".question-content-wrap",
+      ".answer-content-wrap"
+    ].join(", ");
+
+    let turns = Array.from(document.querySelectorAll(turnSelectors));
+    turns = turns.filter(el => !turns.some(other => other !== el && el.contains(other)));
+    let messages = [];
+
     if (turns.length > 0) {
-      turns.forEach(turn => {
-        const role = (turn.getAttribute('data-role') || turn.getAttribute('data-message-author-role') || '').toLowerCase();
-        const isUser = role.includes('user') || role.includes('human') || turn.className.toLowerCase().includes('user') || !!turn.querySelector('[class*="user"]');
+      messages = turns.map(turn => {
+        const role = (turn.getAttribute('data-role') || turn.getAttribute('data-message-author-role') || turn.getAttribute('data-author') || '').toLowerCase();
+        const classStr = turn.className.toLowerCase();
+        const isUser = role.includes('user') || role.includes('human') || classStr.includes('user') || classStr.includes('human') || classStr.includes('question') || !!turn.querySelector("[class*='user'], [class*='human']");
         const text = cleanText(turn.innerText);
-        if (text) {
-          messages.push({
+        return text ? {
+          role: isUser ? 'user' : 'assistant',
+          sender: isUser ? 'User' : 'Assistant',
+          text
+        } : null;
+      }).filter(Boolean);
+    }
+
+    // Stage B: Markdown Blocks
+    if (messages.length === 0) {
+      const markdownBlocks = Array.from(document.querySelectorAll(".markdown-body, .prose, [class*='markdown'], [class*='answer'], [class*='bubble'], .text-message"));
+      if (markdownBlocks.length > 0) {
+        messages = markdownBlocks.map(block => {
+          const text = cleanText(block.innerText);
+          const isUser = block.className.toLowerCase().includes("user") || block.className.toLowerCase().includes("question");
+          return text ? {
             role: isUser ? 'user' : 'assistant',
             sender: isUser ? 'User' : 'Assistant',
             text
-          });
+          } : null;
+        }).filter(Boolean);
+      }
+    }
+
+    // Stage C: Chat Container Child Walker
+    if (messages.length === 0) {
+      const candidates = Array.from(document.querySelectorAll("main, [role='main'], [class*='chat'], [class*='conversation'], [class*='history'], [class*='message']"));
+      let bestContainer = null;
+      let maxValidChildren = 0;
+      for (const c of candidates) {
+        const textChildren = Array.from(c.children).filter(child => cleanText(child.innerText).length > 5);
+        if (textChildren.length >= 2 && textChildren.length > maxValidChildren) {
+          maxValidChildren = textChildren.length;
+          bestContainer = c;
         }
-      });
+      }
+      if (bestContainer) {
+        messages = Array.from(bestContainer.children).filter(child => cleanText(child.innerText).length > 5).map(item => {
+          const text = cleanText(item.innerText);
+          const isUser = item.className.toLowerCase().includes("user") || item.className.toLowerCase().includes("right") || !!item.querySelector("[class*='user'], [class*='avatar-user']");
+          return text ? {
+            role: isUser ? 'user' : 'assistant',
+            sender: isUser ? 'User' : 'Assistant',
+            text
+          } : null;
+        }).filter(Boolean);
+      }
     }
 
     return {

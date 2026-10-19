@@ -19,7 +19,13 @@
     "https://copilot.microsoft.com/*",
     "https://poe.com/*",
     "https://grok.com/*",
-    "https://x.com/i/grok*"
+    "https://x.com/i/grok*",
+    "https://*.chatglm.cn/*",
+    "https://chatglm.cn/*",
+    "https://*.z.ai/*",
+    "https://z.ai/*",
+    "https://*.bigmodel.cn/*",
+    "https://*.glm.ai/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -39,7 +45,13 @@
         "https://copilot.microsoft.com/*",
         "https://poe.com/*",
         "https://grok.com/*",
-        "https://x.com/i/grok*"
+        "https://x.com/i/grok*",
+        "https://*.chatglm.cn/*",
+        "https://chatglm.cn/*",
+        "https://*.z.ai/*",
+        "https://z.ai/*",
+        "https://*.bigmodel.cn/*",
+        "https://*.glm.ai/*"
       ],
       "js": [
         "prompt-compressor.js",

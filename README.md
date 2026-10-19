@@ -27,7 +27,8 @@ I figured other people might run into the exact same frustration, so I decided t
 * **DeepSeek** (`chat.deepseek.com`) — captures full message history and DeepSeek R1 reasoning traces.
 * **Google Gemini** (`gemini.google.com`) — walks structured turns and code blocks.
 * **Perplexity** (`perplexity.ai`) — captures questions, answers, and sources.
-* **Mistral, Copilot, Poe, Grok, and Local WebUIs** (Ollama, Open WebUI, etc.) — generic fallback extractor.
+* **GLM / ChatGLM / Z.ai** (`chatglm.cn`, `z.ai`, `bigmodel.cn`) — captures full conversations and reasoning blocks.
+* **Mistral, Copilot, Poe, Grok, and Local WebUIs** (Ollama, Open WebUI, etc.) — multi-stage fallback extractor.
 
 ---
 
