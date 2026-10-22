@@ -93,15 +93,23 @@
     }
   }
 
-  // 2. CHATGPT (Backend Tree Re-fetch)
+  // 2. CHATGPT (Backend Tree Re-fetch + Synthetic Endpoint)
   else if (host.includes("chatgpt.com") || host.includes("chat.openai.com")) {
     conv.platform = "ChatGPT";
+    const convMatch = location.href.match(/\/c\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    const convId = convMatch ? convMatch[1] : null;
     let raw = null;
     if (typeof performance !== "undefined") {
       const match = performance.getEntriesByType("resource").map(e => e.name).reverse().find(u => u.includes("/backend-api/conversation/"));
       if (match) {
         try { const r = await fetch(match, { credentials: "include" }); if (r.ok) raw = await r.json(); } catch (_) {}
       }
+    }
+    if (!raw && convId) {
+      try {
+        const r = await fetch(`${location.origin}/backend-api/conversation/${convId}`, { credentials: "include" });
+        if (r.ok) raw = await r.json();
+      } catch (_) {}
     }
     if (raw && raw.mapping) {
       conv.title = raw.title || conv.title;

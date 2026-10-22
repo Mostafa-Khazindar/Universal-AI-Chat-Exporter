@@ -155,12 +155,20 @@
 
     // 2. CHATGPT
     if (host.includes('chatgpt.com') || host.includes('chat.openai.com')) {
-      let data = window.__UNIVERSAL_AI_CACHE__.chatgpt.latest;
+      const convMatch = location.href.match(/\/c\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      const convId = convMatch ? convMatch[1] : null;
+      let data = (convId && window.__UNIVERSAL_AI_CACHE__.chatgpt[convId]) || window.__UNIVERSAL_AI_CACHE__.chatgpt.latest;
       if (!data && typeof performance !== 'undefined') {
         const match = performance.getEntriesByType('resource').map(e => e.name).reverse().find(u => u.includes('/backend-api/conversation/'));
         if (match) {
           try { const r = await fetch(match, { credentials: 'include' }); if (r.ok) data = await r.json(); } catch (_) {}
         }
+      }
+      if (!data && convId) {
+        try {
+          const r = await fetch(`${location.origin}/backend-api/conversation/${convId}`, { credentials: 'include' });
+          if (r.ok) data = await r.json();
+        } catch (_) {}
       }
       if (data && data.mapping) {
         let curr = data.current_node;
